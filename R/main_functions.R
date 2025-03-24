@@ -20,335 +20,7 @@
 #' seurat_obj <- calculateFunctionalScores(seurat_obj)
 #' }
 calculateFunctionalScores <- function(seurat_obj, 
-                            c("Chromosome_Arm", paste0(title_case(class), "_CNA"))]
-    colnames(losses)[2] <- "CNA_Value"
-    losses$Category <- title_case(class)
-    
-    # Add to combined tables
-    all_gains <- rbind(all_gains, gains)
-    all_losses <- rbind(all_losses, losses)
-  }
-  
-  # Sort the tables
-  all_gains <- all_gains[order(all_gains$CNA_Value, decreasing = TRUE), ]
-  all_losses <- all_losses[order(all_losses$CNA_Value), ]  # Ascending for losses (most negative first)
-  
-  # ===== SHEET 7: KEY CANCER GENE REGIONS =====
-  # Define key cancer genes by chromosome arm
-  key_cancer_regions <- data.frame(
-    Chromosome_Arm = c("1p", "1q", "2p", "3p", "3q", "4p", "6p", "7p", "8q", "9p", "10q", "11q", "12p", "16q", "17p", "17q", "19q", "20q", "21q"),
-    Key_Genes = c(
-      "SDHB, ARID1A, CDKN2C",               # 1p
-      "MCL1, MDM4, ABL2",                   # 1q
-      "MYCN, REL, EPAS1 (HIF2A)",           # 2p
-      "VHL, SETD2, BAP1",                   # 3p
-      "PIK3CA, SOX2, TP63",                 # 3q
-      "FGFR3, TACC3",                       # 4p
-      "CDKN1A, PIM1, VEGFA",                # 6p
-      "EGFR, TWIST1, HOXA9",                # 7p
-      "MYC, RECQL4, RAD21",                 # 8q
-      "CDKN2A, CDKN2B, JAK2",               # 9p
-      "PTEN, FAS, FGFR2",                   # 10q
-      "ATM, BIRC3, CCND1",                  # 11q
-      "KRAS, CCND2, SOX5",                  # 12p
-      "CDH1, CTCF",                         # 16q
-      "TP53, MAP2K4",                       # 17p
-      "BRCA1, ERBB2, STAT3",                # 17q
-      "AKT2, PPP2R1A, CCNE1",               # 19q
-      "AURKA, SRC, TOP1",                   # 20q
-      "RUNX1, ERG"                          # 21q
-    ),
-    Potential_Role = c(
-      "Tumor suppressors",
-      "Oncogenes",
-      "Oncogenes",
-      "Tumor suppressors",
-      "Oncogenes",
-      "Growth factors",
-      "Cell cycle regulation",
-      "Growth factors",
-      "Oncogenes",
-      "Tumor suppressors",
-      "Tumor suppressors",
-      "DNA damage & cell cycle",
-      "Oncogenes",
-      "Cell adhesion",
-      "Tumor suppressors",
-      "DNA repair & growth",
-      "Cell cycle & growth",
-      "Mitosis & growth",
-      "Transcription factors"
-    )
-  )
-  
-  # Merge with CNA data
-  key_regions_cna <- merge(key_cancer_regions, all_arms_table, by = "Chromosome_Arm")
-  
-  # Sort by average absolute CNA value
-  avg_abs_cna <- rowMeans(abs(as.matrix(key_regions_cna[, grep("_CNA$", colnames(key_regions_cna)), drop = FALSE])))
-  key_regions_cna$Average_Abs_CNA <- avg_abs_cna
-  key_regions_cna <- key_regions_cna[order(key_regions_cna$Average_Abs_CNA, decreasing = TRUE), ]
-  
-  # ===== SHEET 8: DIFFERENCES BETWEEN CATEGORIES =====
-  # Calculate absolute differences between categories
-  category_differences <- data.frame(
-    Chromosome_Arm = arm_summary$chrom_arm
-  )
-  
-  # Add all pairwise differences
-  if (length(class_columns) > 1) {
-    for (i in 1:(length(class_columns)-1)) {
-      for (j in (i+1):length(class_columns)) {
-        class1 <- class_columns[i]
-        class2 <- class_columns[j]
-        diff_col <- paste0(class1, "_vs_", class2)
-        
-        if (diff_col %in% colnames(arm_summary)) {
-          category_differences[[paste0(title_case(class1), "_vs_", title_case(class2))]] <- 
-            round(arm_summary[[diff_col]], 4)
-        } else {
-          category_differences[[paste0(title_case(class1), "_vs_", title_case(class2))]] <- 
-            round(arm_summary[[class1]] - arm_summary[[class2]], 4)
-        }
-      }
-    }
-  }
-  
-  # Add significance indicators
-  for (col in setdiff(colnames(category_differences), "Chromosome_Arm")) {
-    sig_col <- paste0(col, "_Significant")
-    category_differences[[sig_col]] <- abs(category_differences[[col]]) > significance_threshold
-  }
-  
-  # Calculate maximum difference for sorting
-  diff_cols <- grep("_vs_", colnames(category_differences), value = TRUE)
-  diff_cols <- diff_cols[!grepl("_Significant$", diff_cols)]
-  
-  if (length(diff_cols) > 0) {
-    category_differences$Max_Difference <- apply(
-      abs(category_differences[, diff_cols, drop = FALSE]), 
-      1, max
-    )
-    category_differences <- category_differences[order(category_differences$Max_Difference, decreasing = TRUE), ]
-    
-    # Clean up by removing temporary column
-    category_differences$Max_Difference <- NULL
-  }
-  
-  # ===== COMBINE ALL SHEETS INTO EXCEL FILE =====
-  sheets_list <- c(
-    top_tables,
-    list(
-      "All_Chromosome_Arms" = all_arms_table,
-      "Significant_Gains" = all_gains,
-      "Significant_Losses" = all_losses,
-      "Key_Cancer_Gene_Regions" = key_regions_cna
-    )
-  )
-  
-  # Add differences sheet if it has content
-  if (ncol(category_differences) > 1) {
-    sheets_list$Category_Differences <- category_differences
-  }
-  
-  # Write to Excel
-  writexl::write_xlsx(sheets_list, path = output_file)
-  
-  message(paste("Created comprehensive CNA analysis summary Excel file at:", output_file))
-}
-
-#' Run Complete CNA Analysis Pipeline
-#'
-#' Runs the complete CNA analysis pipeline from a Seurat object with spatial data.
-#'
-#' @param seurat_obj A Seurat object with spatial data
-#' @param output_dir Directory to save results. Default is "cnaspatial_results"
-#' @param sample_name Sample name for output files. Default is "sample"
-#' @param assay Assay to use for calculations. Default is "Spatial"
-#' @param species Species for gene sets. Default is "Homo sapiens"
-#' @param save_plots Whether to save plots. Default is TRUE
-#' @param save_data Whether to save intermediate data objects. Default is TRUE
-#' @param run_copykat Whether to run CopyKAT. Default is TRUE
-#' @param reference_cells Optional vector of cell names to use as normal reference for CopyKAT
-#' @param max_cells Maximum number of cells for CopyKAT analysis. Default is 20000
-#'
-#' @return A list containing the analyzed Seurat object and results
-#' @export
-#'
-#' @examples
-#' \dontrun{
-#' results <- runCNASpatialPipeline(seurat_obj, output_dir = "results", sample_name = "PDAC")
-#' }
-runCNASpatialPipeline <- function(seurat_obj,
-                                 output_dir = "cnaspatial_results",
-                                 sample_name = "sample",
-                                 assay = "Spatial",
-                                 species = "Homo sapiens",
-                                 save_plots = TRUE,
-                                 save_data = TRUE,
-                                 run_copykat = TRUE,
-                                 reference_cells = NULL,
-                                 max_cells = 20000) {
-  
-  # Create output directories
-  plots_dir <- file.path(output_dir, "plots")
-  data_dir <- file.path(output_dir, "data")
-  copykat_dir <- file.path(output_dir, "copykat")
-  
-  for (dir in c(output_dir, plots_dir, data_dir, copykat_dir)) {
-    if (!dir.exists(dir)) {
-      dir.create(dir, recursive = TRUE)
-    }
-  }
-  
-  # Start timing
-  start_time <- Sys.time()
-  message(paste("Starting CNASpatial pipeline at", start_time))
-  
-  # Set output file paths
-  results_file <- file.path(data_dir, paste0(sample_name, "_results.rds"))
-  excel_file <- file.path(output_dir, paste0(sample_name, "_CNA_Analysis.xlsx"))
-  
-  # Step 1: Calculate functional scores
-  message("Step 1: Calculating hypoxia and proliferation scores...")
-  seurat_obj <- calculateFunctionalScores(
-    seurat_obj = seurat_obj,
-    assay = assay,
-    species = species
-  )
-  
-  # Step 2: Categorize cells by function
-  message("Step 2: Categorizing cells by functional signatures...")
-  seurat_obj <- categorizeCellsByFunction(seurat_obj)
-  
-  # Step 3: Create expanded subset for CopyKAT
-  message("Step 3: Creating CopyKAT-ready subset...")
-  seurat_obj <- createCopyKATSubset(
-    seurat_obj = seurat_obj,
-    target_cells = max_cells
-  )
-  
-  # Save plot of the expanded subset
-  if (save_plots) {
-    pdf(file.path(plots_dir, paste0(sample_name, "_expanded_subset.pdf")), width = 10, height = 8)
-    print(Seurat::SpatialDimPlot(seurat_obj, group.by = "ExpandedHighSubset"))
-    dev.off()
-  }
-  
-  # Step 4: Run CopyKAT if requested
-  if (run_copykat) {
-    message("Step 4: Preparing count matrix for CopyKAT...")
-    copykat_matrix <- prepareCopyKATMatrix(
-      seurat_obj = seurat_obj,
-      assay = assay,
-      output_file = file.path(copykat_dir, paste0(sample_name, "_input.txt"))
-    )
-    
-    message("Step 5: Running CopyKAT analysis (this may take a while)...")
-    copykat_results <- runCopyKAT(
-      count_matrix = copykat_matrix,
-      output_dir = copykat_dir,
-      sample_name = sample_name,
-      reference_cells = reference_cells,
-      max_cells = max_cells,
-      n_cores = parallel::detectCores() - 1  # Use all but one core
-    )
-    
-    # Step 6: Add CopyKAT results to Seurat object
-    message("Step 6: Adding CopyKAT results to Seurat object...")
-    seurat_obj <- addCopyKATResults(seurat_obj, copykat_results)
-    
-    # Save plot of CopyKAT predictions
-    if (save_plots) {
-      pdf(file.path(plots_dir, paste0(sample_name, "_copykat_predictions.pdf")), width = 10, height = 8)
-      print(Seurat::SpatialDimPlot(seurat_obj, group.by = "copykat_prediction"))
-      dev.off()
-    }
-  } else {
-    message("Skipping CopyKAT analysis as requested")
-    copykat_results <- NULL
-  }
-  
-  # Step 7: Create simplified functional classes
-  message("Step 7: Creating simplified functional classes...")
-  seurat_obj <- createSimplifiedClasses(seurat_obj)
-  
-  # Save plot of simplified classes
-  if (save_plots) {
-    pdf(file.path(plots_dir, paste0(sample_name, "_functional_classes.pdf")), width = 10, height = 8)
-    print(Seurat::SpatialDimPlot(seurat_obj, group.by = "functional_class"))
-    dev.off()
-  }
-  
-  # Step 8: Extract and analyze CNA data
-  if (!is.null(copykat_results)) {
-    message("Step 8: Extracting CNA data for analysis...")
-    cna_data <- extractCNAData(seurat_obj)
-    
-    message("Step 9: Calculating CNA profiles by functional class...")
-    cna_profiles <- calculateCNAProfiles(cna_data)
-    
-    message("Step 10: Aggregating profiles by chromosome arm...")
-    arm_summary <- aggregateByChromosomeArm(cna_profiles)
-    
-    # Create visualizations
-    if (save_plots) {
-      message("Step 11: Creating CNA visualizations...")
-      
-      # Heatmap of chromosome arm CNAs
-      pdf(file.path(plots_dir, paste0(sample_name, "_cna_heatmap.pdf")), width = 10, height = 12)
-      heatmap_plot <- plotCNAHeatmap(arm_summary)
-      print(heatmap_plot)
-      dev.off()
-      
-      # Chromosome ideogram
-      plotChromosomeIdeogram(
-        cna_profiles = cna_profiles,
-        output_file = file.path(plots_dir, paste0(sample_name, "_chromosome_ideogram.pdf"))
-      )
-    }
-    
-    # Create Excel summary
-    message("Step 12: Creating comprehensive Excel summary...")
-    createCNASummaryExcel(
-      arm_summary = arm_summary,
-      output_file = excel_file
-    )
-  } else {
-    cna_data <- NULL
-    cna_profiles <- NULL
-    arm_summary <- NULL
-  }
-  
-  # Save results if requested
-  if (save_data) {
-    message("Saving pipeline results...")
-    results <- list(
-      seurat_obj = seurat_obj,
-      copykat_results = copykat_results,
-      cna_data = cna_data,
-      cna_profiles = cna_profiles,
-      arm_summary = arm_summary
-    )
-    saveRDS(results, results_file)
-  } else {
-    results <- list(
-      seurat_obj = seurat_obj,
-      copykat_results = copykat_results,
-      cna_data = cna_data,
-      cna_profiles = cna_profiles,
-      arm_summary = arm_summary
-    )
-  }
-  
-  # Report completion time
-  end_time <- Sys.time()
-  elapsed <- end_time - start_time
-  message(paste("CNASpatial pipeline completed in", round(elapsed, 2), "units"))
-  
-  return(results)
-}
-        assay = "Spatial",
+                                    assay = "Spatial",
                                     species = "Homo sapiens",
                                     hypoxia_geneset_name = "HALLMARK_HYPOXIA",
                                     prolif_geneset_names = c("HALLMARK_MYC_TARGETS_V1", "HALLMARK_MYC_TARGETS_V2"),
@@ -1510,4 +1182,141 @@ createCNASummaryExcel <- function(arm_summary,
     
     # Filter for significant losses (CNA < -threshold)
     losses <- all_arms_table[all_arms_table[[paste0(title_case(class), "_CNA")]] < -significance_threshold, 
-                            
+                            c("Chromosome_Arm", paste0(title_case(class), "_CNA"))]
+    colnames(losses)[2] <- "CNA_Value"
+    losses$Category <- title_case(class)
+    
+    # Add to combined tables
+    all_gains <- rbind(all_gains, gains)
+    all_losses <- rbind(all_losses, losses)
+  }
+  
+  # Sort the tables
+  all_gains <- all_gains[order(all_gains$CNA_Value, decreasing = TRUE), ]
+  all_losses <- all_losses[order(all_losses$CNA_Value), ]  # Ascending for losses (most negative first)
+  
+  # ===== SHEET 7: KEY CANCER GENE REGIONS =====
+  # Define key cancer genes by chromosome arm
+  key_cancer_regions <- data.frame(
+    Chromosome_Arm = c("1p", "1q", "2p", "3p", "3q", "4p", "6p", "7p", "8q", "9p", "10q", "11q", "12p", "16q", "17p", "17q", "19q", "20q", "21q"),
+    Key_Genes = c(
+      "SDHB, ARID1A, CDKN2C",               # 1p
+      "MCL1, MDM4, ABL2",                   # 1q
+      "MYCN, REL, EPAS1 (HIF2A)",           # 2p
+      "VHL, SETD2, BAP1",                   # 3p
+      "PIK3CA, SOX2, TP63",                 # 3q
+      "FGFR3, TACC3",                       # 4p
+      "CDKN1A, PIM1, VEGFA",                # 6p
+      "EGFR, TWIST1, HOXA9",                # 7p
+      "MYC, RECQL4, RAD21",                 # 8q
+      "CDKN2A, CDKN2B, JAK2",               # 9p
+      "PTEN, FAS, FGFR2",                   # 10q
+      "ATM, BIRC3, CCND1",                  # 11q
+      "KRAS, CCND2, SOX5",                  # 12p
+      "CDH1, CTCF",                         # 16q
+      "TP53, MAP2K4",                       # 17p
+      "BRCA1, ERBB2, STAT3",                # 17q
+      "AKT2, PPP2R1A, CCNE1",               # 19q
+      "AURKA, SRC, TOP1",                   # 20q
+      "RUNX1, ERG"                          # 21q
+    ),
+    Potential_Role = c(
+      "Tumor suppressors",
+      "Oncogenes",
+      "Oncogenes",
+      "Tumor suppressors",
+      "Oncogenes",
+      "Growth factors",
+      "Cell cycle regulation",
+      "Growth factors",
+      "Oncogenes",
+      "Tumor suppressors",
+      "Tumor suppressors",
+      "DNA damage & cell cycle",
+      "Oncogenes",
+      "Cell adhesion",
+      "Tumor suppressors",
+      "DNA repair & growth",
+      "Cell cycle & growth",
+      "Mitosis & growth",
+      "Transcription factors"
+    )
+  )
+  
+  # Merge with CNA data
+  key_regions_cna <- merge(key_cancer_regions, all_arms_table, by = "Chromosome_Arm")
+  
+  # Sort by average absolute CNA value
+  avg_abs_cna <- rowMeans(abs(as.matrix(key_regions_cna[, grep("_CNA$", colnames(key_regions_cna)), drop = FALSE])))
+  key_regions_cna$Average_Abs_CNA <- avg_abs_cna
+  key_regions_cna <- key_regions_cna[order(key_regions_cna$Average_Abs_CNA, decreasing = TRUE), ]
+  
+  # ===== SHEET 8: DIFFERENCES BETWEEN CATEGORIES =====
+  # Calculate absolute differences between categories
+  category_differences <- data.frame(
+    Chromosome_Arm = arm_summary$chrom_arm
+  )
+  
+  # Add all pairwise differences
+  if (length(class_columns) > 1) {
+    for (i in 1:(length(class_columns)-1)) {
+      for (j in (i+1):length(class_columns)) {
+        class1 <- class_columns[i]
+        class2 <- class_columns[j]
+        diff_col <- paste0(class1, "_vs_", class2)
+        
+        if (diff_col %in% colnames(arm_summary)) {
+          category_differences[[paste0(title_case(class1), "_vs_", title_case(class2))]] <- 
+            round(arm_summary[[diff_col]], 4)
+        } else {
+          category_differences[[paste0(title_case(class1), "_vs_", title_case(class2))]] <- 
+            round(arm_summary[[class1]] - arm_summary[[class2]], 4)
+        }
+      }
+    }
+  }
+  
+  # Add significance indicators
+  for (col in setdiff(colnames(category_differences), "Chromosome_Arm")) {
+    sig_col <- paste0(col, "_Significant")
+    category_differences[[sig_col]] <- abs(category_differences[[col]]) > significance_threshold
+  }
+  
+  # Calculate maximum difference for sorting
+  diff_cols <- grep("_vs_", colnames(category_differences), value = TRUE)
+  diff_cols <- diff_cols[!grepl("_Significant$", diff_cols)]
+  
+  if (length(diff_cols) > 0) {
+    category_differences$Max_Difference <- apply(
+      abs(category_differences[, diff_cols, drop = FALSE]), 
+      1, max
+    )
+    category_differences <- category_differences[order(category_differences$Max_Difference, decreasing = TRUE), ]
+    
+    # Clean up by removing temporary column
+    category_differences$Max_Difference <- NULL
+  }
+  
+  # ===== COMBINE ALL SHEETS INTO EXCEL FILE =====
+  sheets_list <- c(
+    top_tables,
+    list(
+      "All_Chromosome_Arms" = all_arms_table,
+      "Significant_Gains" = all_gains,
+      "Significant_Losses" = all_losses,
+      "Key_Cancer_Gene_Regions" = key_regions_cna
+    )
+  )
+  
+  # Add differences sheet if it has content
+  if (ncol(category_differences) > 1) {
+    sheets_list$Category_Differences <- category_differences
+  }
+  
+  # Write to Excel
+  writexl::write_xlsx(sheets_list, path = output_file)
+  
+  message(paste("Created comprehensive CNA analysis summary Excel file at:", output_file))
+}
+
+
