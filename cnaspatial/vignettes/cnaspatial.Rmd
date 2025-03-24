@@ -1,0 +1,276 @@
+---
+title: "Getting Started with CNASpatial"
+author: "Your Name"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+vignette: >
+  %\VignetteIndexEntry{Getting Started with CNASpatial}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 8,
+  fig.height = 6,
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+## Introduction
+
+CNASpatial is a package for analyzing Copy Number Alterations (CNAs) in spatial transcriptomics data. It provides a comprehensive workflow to identify and analyze CNAs in relation to functional signatures like hypoxia and proliferation.
+
+This vignette demonstrates the basic functionality of CNASpatial using a small example dataset.
+
+## Installation
+
+```{r eval=FALSE}
+# Install dependencies first
+install.packages(c("Seurat", "dplyr", "ggplot2", "pheatmap", "RColorBrewer", 
+                  "patchwork", "gridExtra", "grid", "writexl", "tidyr"))
+
+# Install msigdbr for gene signatures
+install.packages("msigdbr")
+
+# Install copykat
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("copykat")
+
+# Install CNASpatial from GitHub
+if (!requireNamespace("devtools", quietly = TRUE))
+    install.packages("devtools")
+devtools::install_github("yourusername/cnaspatial")
+```
+
+## Loading Required Libraries
+
+```{r setup}
+library(cnaspatial)
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+```
+
+## Example Data
+
+For this vignette, we'll use a small subset of a Visium spatial transcriptomics dataset from a pancreatic ductal adenocarcinoma (PDAC) sample. 
+
+```{r data, eval=FALSE}
+# Load example data
+data("pdac_mini")
+pdac_mini
+```
+
+```
+## An object of class Seurat 
+## 33538 features across 100 samples within 1 assay 
+## Active assay: Spatial (33538 features, 0 variable features)
+```
+
+Let's look at the structure of the data:
+
+```{r data_structure, eval=FALSE}
+# View the first few genes
+head(rownames(pdac_mini))
+
+# View the assay data
+DefaultAssay(pdac_mini)
+
+# Check available images
+Images(pdac_mini)
+```
+
+## Step 1: Calculate Functional Scores
+
+First, we'll calculate hypoxia and proliferation scores for each spot based on established gene signatures from MSigDB.
+
+```{r functional_scores, eval=FALSE}
+# Calculate functional scores
+pdac_mini <- calculateFunctionalScores(pdac_mini)
+
+# View the scores
+head(pdac_mini@meta.data[, c("HypoxiaScore1", "ProliferationScore1")])
+
+# Plot the distribution of scores
+VlnPlot(pdac_mini, features = c("HypoxiaScore1", "ProliferationScore1"))
+
+# Create a scatter plot of the scores
+FeatureScatter(pdac_mini, feature1 = "HypoxiaScore1", 
+               feature2 = "ProliferationScore1")
+```
+
+## Step 2: Categorize Cells by Function
+
+Now we'll categorize the spots based on their hypoxia and proliferation scores.
+
+```{r categorize, eval=FALSE}
+# Categorize spots
+pdac_mini <- categorizeCellsByFunction(pdac_mini)
+
+# View category distribution
+table(pdac_mini$HypoxProlifCategory)
+
+# View refined category distribution
+table(pdac_mini$HypoxProlifCategory_Refined)
+
+# Visualize categories spatially
+p1 <- SpatialDimPlot(pdac_mini, group.by = "HypoxProlifCategory", 
+                    pt.size = 2) + 
+      ggtitle("Functional Categories")
+
+# Visualize categories by score
+p2 <- plotFunctionalScores(pdac_mini) + 
+      ggtitle("Functional Categories by Score")
+
+p1 + p2
+```
+
+## Step 3: Create CopyKAT Ready Subset
+
+Next, we'll create a subset of spots for CopyKAT analysis. CopyKAT works best with a targeted subset.
+
+```{r copykat_subset, eval=FALSE}
+# Create subset for CopyKAT
+pdac_mini <- createCopyKATSubset(
+    pdac_mini,
+    target_cells = 100  # Small for example purposes
+)
+
+# View the expanded subset distribution
+table(pdac_mini$ExpandedHighSubset)
+
+# Visualize the expanded subset spatially
+SpatialDimPlot(pdac_mini, group.by = "ExpandedHighSubset", pt.size = 2)
+```
+
+## Step 4: Run CopyKAT Analysis
+
+Now we'll run CopyKAT to detect CNAs from gene expression data.
+
+```{r run_copykat, eval=FALSE}
+# Prepare count matrix for CopyKAT
+copykat_matrix <- prepareCopyKATMatrix(
+    pdac_mini,
+    output_file = "copykat_input.txt"
+)
+
+# Run CopyKAT (set to FALSE for faster vignette processing)
+if (FALSE) {
+    copykat_results <- runCopyKAT(
+        copykat_matrix,
+        output_dir = "copykat_results",
+        sample_name = "pdac_mini",
+        n_cores = 1  # Adjust based on your system
+    )
+} else {
+    # Load pre-computed results for demonstration
+    data("copykat_results_mini")
+    copykat_results <- copykat_results_mini
+}
+
+# Add CopyKAT results to Seurat object
+pdac_mini <- addCopyKATResults(pdac_mini, copykat_results)
+
+# View CopyKAT predictions
+table(pdac_mini$copykat_prediction)
+
+# Visualize CopyKAT predictions spatially
+SpatialDimPlot(pdac_mini, group.by = "copykat_prediction", pt.size = 2)
+```
+
+## Step 5: Create Simplified Functional Classes
+
+Create a simplified classification with three main categories for easier analysis.
+
+```{r simplified_classes, eval=FALSE}
+# Create simplified classifications
+pdac_mini <- createSimplifiedClasses(pdac_mini)
+
+# View simplified class distribution
+table(pdac_mini$functional_class)
+
+# Visualize simplified classes
+SpatialDimPlot(pdac_mini, group.by = "functional_class", pt.size = 2)
+```
+
+## Step 6: Extract and Analyze CNA Data
+
+Extract CNA data and calculate profiles by functional class.
+
+```{r analyze_cna, eval=FALSE}
+# Extract CNA data
+cna_data <- extractCNAData(pdac_mini)
+
+# Calculate CNA profiles by functional class
+cna_profiles <- calculateCNAProfiles(cna_data)
+
+# Aggregate profiles by chromosome arm
+arm_summary <- aggregateByChromosomeArm(cna_profiles)
+
+# View summary of chromosome arm CNAs
+head(arm_summary[, c("chrom_arm", "hypoxic", "proliferative", "undefined")])
+```
+
+## Step 7: Visualize CNA Results
+
+Create visualizations of the CNA results.
+
+```{r visualize_cna, eval=FALSE}
+# Create CNA heatmap
+heatmap_plot <- plotCNAHeatmap(arm_summary)
+print(heatmap_plot)
+
+# Create chromosome ideogram
+plotChromosomeIdeogram(cna_profiles)
+
+# Create barplot of top chromosome arms
+barplot <- plotCNABarplot(arm_summary, n_top = 10)
+print(barplot)
+
+# Create circos plot
+plotCNACircos(arm_summary)
+```
+
+## Step 8: Generate Summary Reports
+
+Create comprehensive Excel summary of CNA findings.
+
+```{r summary_excel, eval=FALSE}
+# Create Excel summary
+createCNASummaryExcel(
+    arm_summary,
+    output_file = "pdac_mini_CNA_summary.xlsx"
+)
+```
+
+## Step 9: Treatment Comparison (Optional)
+
+If you have treated and untreated samples, you can compare their CNA profiles.
+
+```{r treatment_comparison, eval=FALSE}
+# Add a simulated treatment variable for demonstration
+set.seed(42)
+pdac_mini$treated <- sample(c("Yes", "No"), ncol(pdac_mini), replace = TRUE)
+
+# Compare CNAs between treated and untreated samples
+plotTreatmentComparison(
+    pdac_mini,
+    treatment_col = "treated",
+    output_dir = "treatment_results"
+)
+```
+
+## Conclusion
+
+This vignette demonstrated the basic workflow of CNASpatial for analyzing CNAs in spatial transcriptomics data. The package provides a comprehensive set of tools for detecting, analyzing, and visualizing CNAs in relation to functional signatures like hypoxia and proliferation.
+
+For more advanced usage, please refer to the function documentation.

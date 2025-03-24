@@ -1,0 +1,36 @@
+Package: cnaspatial
+Title: Analysis of Copy Number Alterations in Spatial Transcriptomics Data
+Version: 0.1.0
+Authors@R: 
+    person("Your", "Name", email = "your.email@example.com", role = c("aut", "cre"),
+           comment = c(ORCID = "Your-ORCID-ID"))
+Description: A pipeline for analyzing copy number alterations (CNAs) in spatial 
+    transcriptomics data, with a focus on functional signatures such as hypoxia and 
+    proliferation. This package provides tools for categorizing spots based on gene 
+    expression signatures, visualizing CNAs in relation to these categories, and 
+    generating comprehensive reports of genomic alterations.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
+Imports: 
+    Seurat,
+    copykat,
+    ggplot2,
+    dplyr,
+    patchwork,
+    pheatmap,
+    RColorBrewer,
+    msigdbr,
+    gridExtra,
+    grid,
+    writexl,
+    circlize,
+    ComplexHeatmap,
+    tidyr
+Suggests: 
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+Config/testthat/edition: 3
+VignetteBuilder: knitr
