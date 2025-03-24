@@ -1,4 +1,3 @@
-Based on your requirements for a more flexible approach that allows for user-defined signatures beyond just hypoxia and proliferation, I'll update the visualization file to be more adaptable. Here's an improved version of the visualization module that handles custom functional signatures:
 
 ```r
 #' Plot Functional Score Scatter Plot
