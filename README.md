@@ -239,8 +239,9 @@ This package is licensed under the MIT License - see the LICENSE file for detail
 If you use CNASpatial in your research, please cite:
 
 ```
-Khaliq, A. (2025). CNASpatial: An R package for analyzing Copy Number Alterations in spatial transcriptomics data. 
+Masood, A & Khaliq, A. (2025). CNASpatial: An R package for analyzing Copy Number Alterations in spatial transcriptomics data. 
 GitHub repository: https://github.com/ateeq-khaliq/cnaspatial
+Email at akhaliq@iu.edu; asmasood@iu.edu
 ```
 
 ## Contributing
