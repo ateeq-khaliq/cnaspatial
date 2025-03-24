@@ -1,4 +1,3 @@
-
 ```r
 #' Plot Functional Score Scatter Plot
 #'
