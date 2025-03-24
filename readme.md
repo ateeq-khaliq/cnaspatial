@@ -196,7 +196,7 @@ plotTreatmentComparison(
 If you use CNASpatial in your research, please cite:
 
 ```
-[Your citation information will go here]
+WE ARE STILL Publishing it -- please email me at akhaliq@iu.edu
 ```
 
 ## License
