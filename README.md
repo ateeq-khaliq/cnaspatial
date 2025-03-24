@@ -2,7 +2,7 @@
 
 ## Overview
 
-CNASpatial is an R package for analyzing Copy Number Alterations (CNAs) in spatial transcriptomics data. The package provides tools to categorize cells based on functional signatures like hypoxia and proliferation, detect CNAs using CopyKAT, and visualize CNAs in relation to these functional categories.
+CNASpatial is an R package for analyzing Copy Number Alterations (CNAs) in spatial transcriptomics data. The package provides a flexible framework to categorize cells based on any user-defined functional signatures (with hypoxia and proliferation provided as examples), detect CNAs using CopyKAT, and visualize CNAs in relation to these functional categories. Users can implement their own custom gene signatures, use alternative gene sets from public databases, or define entirely new classification schemes, making the package adaptable to a wide range of research questions across different tissue types and disease contexts.
 
 ## Features
 
