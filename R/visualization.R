@@ -1,4 +1,3 @@
-```r
 #' Plot Functional Score Scatter Plot
 #'
 #' Creates a scatter plot of any two functional scores with cells colored by category.
