@@ -1318,5 +1318,3 @@ createCNASummaryExcel <- function(arm_summary,
   
   message(paste("Created comprehensive CNA analysis summary Excel file at:", output_file))
 }
-
-
