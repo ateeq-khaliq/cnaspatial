@@ -1286,7 +1286,7 @@ createCNASummaryExcel <- function(arm_summary,
   diff_cols <- grep("_vs_", colnames(category_differences), value = TRUE)
   diff_cols <- diff_cols[!grepl("_Significant$", diff_cols)]
   
-  if (length(diff_cols) > 0) {
+   if (length(diff_cols) > 0) {
     category_differences$Max_Difference <- apply(
       abs(category_differences[, diff_cols, drop = FALSE]), 
       1, max
